@@ -76,15 +76,12 @@ Requires: net-snmp-utils >= 5.7.1
 Requires: net-snmp-python
 
 Requires: sipxcommons >= %version
-Requires: sipxtacklib >= %version
-Requires: sipxcommserverlib >= %version
 Requires: sipxcdr-client >= %version
-Requires: sipxsupervisor >= %version
 Requires: chkconfig
 
 Requires: ruby
 Requires: rubygems
-Requires: freeswitch >= 1.0.7
+#Requires: freeswitch >= 1.0.7
 
 # XX-10822 Required EPEL rpms are now found in build. Pointing to this repo has
 # proven to be dangerous

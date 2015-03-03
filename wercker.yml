@@ -1,0 +1,56 @@
+box: nextpj/sipxecs-management-docker:29ef08a
+no-response-timeout: 15
+build:
+  steps:
+   - nextpj/add-ssh-key:
+        keyname: SSH_KEY
+        host: github.com
+   - add-to-known_hosts:
+        hostname: github.com
+   - script:
+        name: compile
+        code: |
+          ls /root/.ssh/
+          cat /root/.ssh/config
+          #git checkout release-14.10
+          #git pull
+          # delete symbolic link file $1, recreate link $1 to file $2
+          function redo_links () { if [ -h $1 ]; then rm $1; ln -s $2 $1; echo "redone symbolic link $1 to $2"; else echo "$1 is not a symbolic link, aborting" ; fi; }
+          BEFORE_SIPXCONFIG_BUILD_COMPONENTS="sipXcommons sipXcdr"
+          AFTER_SIPXCONFIG_BUILD_COMPONENTS="sipXaudiocodes sipXrest sipXcallController sipXcounterpath sipXpolycom sipXprovision sipXyealink"
+          SIPXECS_MANAGEMENT_BUILD_COMPONENTS="$BEFORE_SIPXCONFIG_BUILD_COMPONENTS sipXconfig $AFTER_SIPXCONFIG_BUILD_COMPONENTS"
+          for DIR in $SIPXECS_MANAGEMENT_BUILD_COMPONENTS; do redo_links $DIR/config  ../config/; done
+          autoreconf -if
+          mkdir build
+          cd build
+          echo $SIPXECS_MANAGEMENT_BUILD_COMPONENTS > .modules-include                 
+          ../configure --enable-rpm --disable-dep-check UPSTREAM_URL=http://download2.sipfoundry.org/pub/staging/14.10-unstable/ MIRROR_SITE=http://download2.sipfoundry.org/pub PACKAGE_REVISION="stable"  PACKAGE_VERSION="14.10"
+          # prepare dart sdk for sipXconfig
+          cd ../sipXconfig/
+          /opt/dart-sdk/bin/pub get
+          /opt/dart-sdk/bin/pub build
+          cd ../build
+          make repo-create
+          make repo-webserver
+          make sipXcommons.rpm-nomock
+          make sipXcdr.rpm-nomock
+          for COMPONENT in $BEFORE_SIPXCONFIG_BUILD_COMPONENTS; do echo "make ${COMPONENT}.rpm-nomock"; make ${COMPONENT}.rpm-nomock; if [ $? -ne 0 ]; then echo "Failed building ${COMPONENT}.rpm-nomock"; break; else echo "Successfully built ${COMPONENT}.rpm-nomock"; fi; done 
+          # first attempt to build sipxconfig will fail, we need to create link to packages again, then build will work fine
+          make sipXconfig.rpm-nomock || true
+          cd ../sipXconfig/web
+          ln -s ../packages packages
+          cd ../../build
+          make sipXconfig.rpm-nomock         
+          for COMPONENT in $AFTER_SIPXCONFIG_BUILD_COMPONENTS; do echo "make ${COMPONENT}.rpm-nomock"; make ${COMPONENT}.rpm-nomock; if [ $? -ne 0 ]; then echo "Failed building ${COMPONENT}.rpm-nomock"; break; else echo "Successfully built ${COMPONENT}.rpm-nomock"; fi; done
+
+deploy:
+  steps:
+   - nextpj/add-ssh-key:
+        keyname: SSH_KEY
+        host: $DEPLOY_HOST_IP
+   - script:
+        name: copy rpms
+        code: |
+          cd build
+          ls -la repo/CentOS_6/x86_64/*.rpm
+          scp -v -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no repo/CentOS_6/x86_64/*.rpm $DEPLOY_USER@$DEPLOY_HOST_IP:/$DEPLOY_DIR_FULL_PATH

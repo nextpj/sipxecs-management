@@ -1,0 +1,36 @@
+#!/bin/bash
+# This script expects 3 parameters
+#%1 rpm-name
+#%2 src-dir
+#%3 dst-dir
+# The script performs the following operations:
+# - searches for the rpm with "rpm-name" in src-dir
+# - lists what it found
+# - installs the rpm
+# - moves the rpm to dst-dir
+
+# generic function to search, list, move the rpms
+# usage: process_rpm rpm_name_root src_dir dst_dir
+process_rpm() {
+#	echo $1 ; echo $2 ; echo $3;
+	find $2 -name "$1" \( -exec ls {} \; -false -o -exec rpm -i {} \; -false -o -exec mv {} $3 \; \);
+}
+
+# echo rpm name and list src-dir
+echo $1
+ls $2
+rpm_name_root=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+
+if [ "$1" == "sipXcommons" ]; then 
+	find $2 -name "${rpm_name_root}*rpm" \( -exec ls {} \; -false -o -exec rpm -i --nodeps {} \; -false -o -exec mv {} $3 \; \);
+elif [ "$1" == "sipXcdr" ]; then
+	process_rpm "${rpm_name_root}*client*rpm" $2 $3
+	process_rpm "${rpm_name_root}*rpm" $2 $3
+elif [ "$1" == "sipXconfig" ]; then
+	find $2 -name "${rpm_name_root}*rpm" ! -name "$rpm_name_root}*ftp*rpm" \( -exec ls {} \; -false -o -exec rpm -i --nodeps {} \; -false -o -exec mv {} $3 \; \);
+	process_rpm "${rpm_name_root}*tftp*rpm" $2 $3
+	process_rpm "${rpm_name_root}*ftp*rpm" $2 $3
+else
+	process_rpm "${rpm_name_root}*devel*rpm" $2 $3
+        process_rpm "${rpm_name_root}*rpm" $2 $3
+fi
